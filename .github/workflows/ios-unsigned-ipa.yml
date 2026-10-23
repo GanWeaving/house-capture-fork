@@ -1,0 +1,50 @@
+name: Build Unsigned iOS IPA (House Capture, free Apple ID sideloading)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i iphoneos
+          ls /Applications | grep -i xcode
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: apps/house-capture
+        run: xcodegen generate
+
+      - name: Build unsigned Release .app
+        working-directory: apps/house-capture
+        run: |
+          xcodebuild \
+            -project HouseCapture.xcodeproj \
+            -scheme HouseCapture \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package IPA
+        working-directory: apps/house-capture
+        run: |
+          mkdir -p ipa/Payload
+          cp -R build/Build/Products/Release-iphoneos/*.app ipa/Payload/
+          cd ipa && zip -qry ../housecapture.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: housecapture-unsigned-ipa
+          path: apps/house-capture/housecapture.ipa
+          retention-days: 14
